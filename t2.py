@@ -25,23 +25,25 @@ test_data = datos_filtrados.iloc[split_index:]  # Datos de prueba (20%)
 #print("Cantidad de datos prueba:",len(test_data))
 # Entropía de Shannon
 def entropy(columna):
+    print("columna \n",columna)
     conteos = Counter(columna)  # Cuenta la frecuencia de cada valor en la columna
+    print("conteos",conteos)
     total = len(columna)  # Calcula el total de elementos en la columna
     return -sum((c / total) * np.log2(c / total) for c in conteos.values())  # Calcula la entropía de Shannon
 
 # Ganancia de información
 def info_gain(data, atributo, clase):
     total_ent = entropy(data[clase])  # Calcula la entropía total de la clase
-   # print("total_entropia   ",total_ent)
+    print("total_entropia   ",total_ent)
     valores = data[atributo].unique()  # Obtiene los valores únicos del atributo
-   #print("valores atributo sin unique    \n",data[atributo])
-    #print("valores con unique    ",valores)
+    print("valores atributo sin unique    \n",data[atributo])
+    print("valores con unique    ",valores)
     entropia_ponderada = 0  # Inicializa la entropía ponderada
     for val in valores:  # Itera sobre cada valor único del atributo
         subconjunto = data[data[atributo] == val]  # Filtra el subconjunto de datos con el valor actual
         peso = len(subconjunto) / len(data)  # Calcula el peso del subconjunto
         entropia_ponderada += peso * entropy(subconjunto[clase])  # Suma la entropía ponderada del subconjunto
-   # print("ganancia",f"{(total_ent - entropia_ponderada):.10f}" )    
+    print("ganancia",f"{(total_ent - entropia_ponderada):.10f}" )    
     return total_ent - entropia_ponderada  # Retorna la ganancia de información
 
 # Algoritmo ID3 recursivo
@@ -115,3 +117,41 @@ print("\nÁrbol generado:\n", arbol)  # Imprime el árbol generado
 print("\nMatriz de Confusión y Métricas:")  # Imprime las métricas de evaluación
 for clave, valor in resultados.items():  # Itera sobre las métricas
     print(f"{clave}: {valor:.4f}" if isinstance(valor, float) else f"{clave}: {valor}")  # Imprime cada métrica
+
+
+
+
+
+
+
+
+
+    # Función para imprimir el árbol de forma jerárquica
+from graphviz import Digraph
+
+def visualizar_arbol(arbol, nombre_archivo="arbol"):
+    dot = Digraph()
+    contador = [0]  # Contador de nodos únicos
+
+    def agregar_nodo(subarbol, padre=None, valor_padre=None):
+        nodo_id = str(contador[0])
+        contador[0] += 1
+
+        if isinstance(subarbol, dict):
+            atributo = next(iter(subarbol))
+            dot.node(nodo_id, atributo)  # Nodo del atributo
+            if padre is not None:
+                dot.edge(padre, nodo_id, label=str(valor_padre))
+            for valor, rama in subarbol[atributo].items():
+                agregar_nodo(rama, nodo_id, valor)
+        else:
+            dot.node(nodo_id, str(subarbol), shape='box')  # Nodo hoja
+            if padre is not None:
+                dot.edge(padre, nodo_id, label=str(valor_padre))
+
+    agregar_nodo(arbol)
+    dot.render(filename=nombre_archivo, format='png', cleanup=True)
+    print(f"Árbol guardado como {nombre_archivo}.png")
+
+# Llamar a la función
+visualizar_arbol(arbol)
