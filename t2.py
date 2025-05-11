@@ -1,105 +1,72 @@
-import pandas as pd
-import numpy as np
-from collections import Counter
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score
-import matplotlib.pyplot as plt
-from graphviz import Digraph
+import pandas as pd  # Librería para manipulación y análisis de datos
+import numpy as np  # Librería para operaciones numéricas
+from collections import Counter  # Herramienta para contar elementos en colecciones
+from sklearn.ensemble import RandomForestClassifier  # Modelo de clasificación Random Forest
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score  # Métricas de evaluación
+import matplotlib.pyplot as plt  # Librería para visualización de datos
+from graphviz import Digraph  # Herramienta para crear gráficos de árboles
 
 # --- Carga y Preprocesamiento de Datos ---
 def cargar_datos(url, columnas, codificacion='latin1'):
     """
     Carga un CSV desde una URL y devuelve un DataFrame con las columnas especificadas.
-
-    Teoría:
-      - Preprocesamiento: paso inicial para asegurar formato y columnas correctas.
-      - Codificación: manejo de caracteres especiales antes de análisis.
     """
-    df = pd.read_csv(url, usecols=columnas, encoding=codificacion)
-    print(f"[cargar_datos] Datos cargados con {len(df)} filas y {len(df.columns)} columnas.")
-    return df
-
+    df = pd.read_csv(url, usecols=columnas, encoding=codificacion)  # Carga el archivo CSV con las columnas y codificación especificadas
+    print(f"[cargar_datos] Datos cargados con {len(df)} filas y {len(df.columns)} columnas.")  # Muestra información sobre los datos cargados
+    return df  # Devuelve el DataFrame cargado
 
 def filtrar_edad(df, columna_edad, edad_min, edad_max):
     """
     Filtra el DataFrame para incluir solo filas cuya edad esté entre edad_min y edad_max.
-
-    Teoría:
-      - Subconjunto relevante: enfocarse en el rango etario deseado mejora la especificidad.
     """
-    filtrado = df[(df[columna_edad] >= edad_min) & (df[columna_edad] <= edad_max)].copy()
-    print(f"[filtrar_edad] Filtrado: {len(filtrado)} filas entre {edad_min} y {edad_max} años.")
-    return filtrado
-
+    filtrado = df[(df[columna_edad] >= edad_min) & (df[columna_edad] <= edad_max)].copy()  # Filtra las filas según el rango de edad
+    print(f"[filtrar_edad] Filtrado: {len(filtrado)} filas entre {edad_min} y {edad_max} años.")  # Muestra el número de filas filtradas
+    return filtrado  # Devuelve el DataFrame filtrado
 
 def preprocesar_categoricas(df, columna_target):
     """
     Selecciona solo columnas categóricas y elimina filas sin valor en la variable target.
-
-    Teoría:
-      - Modelos ID3/RF con datos categóricos: conviene convertir variables a categorías.
-      - Eliminación de nulos: necesaria para cálculos de entropía y métricas.
     """
-    categ = df.select_dtypes(include='object').dropna(subset=[columna_target])
-    print(f"[preprocesar_categoricas] Columnas categóricas: {list(categ.columns)}. Filas tras dropna: {len(categ)}.")
-    return categ
-
+    categ = df.select_dtypes(include='object').dropna(subset=[columna_target])  # Selecciona columnas categóricas y elimina filas con valores nulos en la columna objetivo
+    print(f"[preprocesar_categoricas] Columnas categóricas: {list(categ.columns)}. Filas tras dropna: {len(categ)}.")  # Muestra las columnas categóricas y el número de filas restantes
+    return categ  # Devuelve el DataFrame procesado
 
 def dividir_entrenamiento_prueba(df, prueba_size=0.2, random_state=None):
     """
     Mezcla aleatoriamente el DataFrame y lo divide en entrenamiento y prueba según prueba_size.
-
-    Teoría:
-      - Validación: split 80/20 para evaluar generalización del modelo.
-      - Reproducibilidad: seed fija en sample.
     """
-    df_shuffled = df.sample(frac=1, random_state=random_state).reset_index(drop=True) 
-    idx = int(len(df_shuffled)*(1-prueba_size))
-    entrenamiento = df_shuffled.iloc[:idx]
-    prueba  = df_shuffled.iloc[idx:]
-    print(f"[dividir_entrenamiento_prueba] Entrenamiento:{len(entrenamiento)} filas, Prueba:{len(prueba)} filas.")
-    return entrenamiento, prueba
+    df_shuffled = df.sample(frac=1, random_state=random_state).reset_index(drop=True)  # Mezcla aleatoriamente las filas del DataFrame
+    idx = int(len(df_shuffled)*(1-prueba_size))  # Calcula el índice para dividir el DataFrame
+    entrenamiento = df_shuffled.iloc[:idx]  # Selecciona las filas para el conjunto de entrenamiento
+    prueba  = df_shuffled.iloc[idx:]  # Selecciona las filas para el conjunto de prueba
+    print(f"[dividir_entrenamiento_prueba] Entrenamiento:{len(entrenamiento)} filas, Prueba:{len(prueba)} filas.")  # Muestra el tamaño de los conjuntos
+    return entrenamiento, prueba  # Devuelve los conjuntos de entrenamiento y prueba
 
 # --- Implementación ID3 ---
-
 def entropia(serie):
     """
     Calcula la entropía de Shannon de una serie de etiquetas.
-
-    Teoría:
-      H(S) = -∑ p_i log2(p_i), mide incertidumbre o impureza de S.
+    medida cuantitativa de la cantidad de informaci´on que contiene una variable
     """
-    conteos = Counter(serie) # devuelve un diccionario con la frecuencia de cada valor del atributo
-    total = len(serie)
-    ent = -sum((c/total)*np.log2(c/total) for c in conteos.values())
-    print(f"[entropia] Valores: {dict(conteos)}, Entropía: {ent:.4f}")
-    return ent
-
+    conteos = Counter(serie)  # Cuenta la frecuencia de cada valor en la serie (columna de estado, ACEPTADO o RECHAZADO)
+    total = len(serie)  # Calcula el número total de elementos
+    resultadoEntropia = -sum((cantEstado/total)*np.log2(cantEstado/total) for cantEstado in conteos.values())  # Calcula la entropía usando la fórmula de Shannon, la cantidad de veces que tenemos por cada estado
+    print(f"[entropia] Valores: {dict(conteos)}, Entropía: {resultadoEntropia:.4f}")  # Muestra los valores y la entropía calculada
+    return resultadoEntropia  # Devuelve la entropía calculada
 
 def ganancia_informacion(df, caracteristica, target):
     """
     Calcula la ganancia de información de particionar df por caracteristica.
-
-    Teoría:
-      Gain(S,A) = H(S) - ∑ (|S_v|/|S|)*H(S_v), selecciona atributo que maximiza reducción de entropía.
     """
-    ent_total = entropia(df[target])
-    ent_ponderada = sum((len(sub)/len(df))*entropia(sub[target])
-                         for _, sub in df.groupby(caracteristica))
-    ganancia = ent_total - ent_ponderada
-    print(f"[ganancia_informacion] Feature: {caracteristica}, Ganancia: {ganancia:.4f}")
-    return ganancia
-
+    ent_total = entropia(df[target])  # Calcula la entropía total del conjunto de datos
+    ent_ponderada = sum((len(sub)/len(df))*entropia(sub[target]) for _, sub in df.groupby(caracteristica))  # Calcula la entropía ponderada por partición
+    ganancia = ent_total - ent_ponderada  # Calcula la ganancia de información
+    print(f"[ganancia_informacion] Feature: {caracteristica}, Ganancia: {ganancia:.4f}")  # Muestra la característica y su ganancia de información
+    return ganancia  # Devuelve la ganancia de información
 
 def construir_id3(df, target, caracteristicas):
     """
     Construye recursivamente un árbol de decisión usando ID3.
-
-    Teoría:
-      - Caso puro: nodo hoja.
-      - Sin atributos: nodo con clase mayoritaria.
-      - Seleccionar atributo con mayor ganancia de información.
-      - Recursión sobre particiones.
     """
     # Caso base: si todas las etiquetas iguales
     if len(df[target].unique()) == 1:
@@ -127,14 +94,9 @@ def construir_id3(df, target, caracteristicas):
         )
     return arbol
 
-
 def predecir_id3(arbol, fila, por_defecto):
     """
     Predice la clase de una instancia usando el árbol ID3.
-
-    Teoría:
-      - Se recorre el árbol según el valor de cada atributo.
-      - Si falta rama, retorna clase por defecto (mayoría).
     """
     if not isinstance(arbol, dict):
         return arbol or por_defecto
@@ -144,17 +106,9 @@ def predecir_id3(arbol, fila, por_defecto):
     return predecir_id3(rama, fila, por_defecto)
 
 # --- Evaluación de Modelos ---
-
 def evaluar(y_true, y_pred):
     """
     Calcula matriz de confusión y métricas (accuracy, precision, recall, F1).
-
-    Teoría:
-      - Matriz de confusión: TP, FP, TN, FN.
-      - Accuracy = (TP+TN)/total
-      - Precision = TP/(TP+FP)
-      - Recall = TP/(TP+FN)
-      - F1 = 2*(precision*recall)/(precision+recall)
     """
     etiquetas = sorted(set(y_true))
     cm = confusion_matrix(y_true, y_pred, labels=etiquetas)
@@ -166,15 +120,9 @@ def evaluar(y_true, y_pred):
     return {'cm': cm, 'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1}
 
 # --- Random Forest ---
-
 def ejecutar_bosque_random(X_train, y_train, X_test, n_estimators=10, random_state=42):
     """
     Entrena y predice con RandomForestClassifier.
-
-    Teoría:
-      - Bagging: muestras bootstrap.
-      - Selección aleatoria de atributos en cada nodo.
-      - Votación mayoritaria para clasificación.
     """
     modelo = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
     modelo.fit(X_train, y_train)
@@ -182,14 +130,9 @@ def ejecutar_bosque_random(X_train, y_train, X_test, n_estimators=10, random_sta
     print(f"[ejecutar_bosque_random] Predicciones generadas para {len(preds)} instancias.")
     return preds
 
-
 def graficar_curva_precision(X_train, y_train, X_test, y_test, max_arboles=10):
     """
     Grafica precisión vs número de árboles para train y test.
-
-    Teoría:
-      - Evaluación de sobreajuste: alta precisión en train y baja en test.
-      - Rendimientos decrecientes: más árboles → menor ganancia.
     """
     arboles = list(range(1, max_arboles+1))
     p_train, p_test = [], []
@@ -208,13 +151,9 @@ def graficar_curva_precision(X_train, y_train, X_test, y_test, max_arboles=10):
     plt.show()
 
 # --- Visualización de Árbol ID3 ---
-
 def visualizar_arbol(arbol, nombre_archivo='arbol'):
     """
     Guarda una representación gráfica del árbol ID3 usando graphviz.
-
-    Teoría:
-      - Explicabilidad: árboles permiten interpretar decisiones.
     """
     dot = Digraph()
     idx = {'i': 0}
