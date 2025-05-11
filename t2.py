@@ -53,7 +53,7 @@ def dividir_entrenamiento_prueba(df, prueba_size=0.2, random_state=None):
       - Validación: split 80/20 para evaluar generalización del modelo.
       - Reproducibilidad: seed fija en sample.
     """
-    df_shuffled = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
+    df_shuffled = df.sample(frac=1, random_state=random_state).reset_index(drop=True) 
     idx = int(len(df_shuffled)*(1-prueba_size))
     entrenamiento = df_shuffled.iloc[:idx]
     prueba  = df_shuffled.iloc[idx:]
@@ -69,7 +69,7 @@ def entropia(serie):
     Teoría:
       H(S) = -∑ p_i log2(p_i), mide incertidumbre o impureza de S.
     """
-    conteos = Counter(serie)
+    conteos = Counter(serie) # devuelve un diccionario con la frecuencia de cada valor del atributo
     total = len(serie)
     ent = -sum((c/total)*np.log2(c/total) for c in conteos.values())
     print(f"[entropia] Valores: {dict(conteos)}, Entropía: {ent:.4f}")
