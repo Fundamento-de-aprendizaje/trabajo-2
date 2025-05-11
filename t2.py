@@ -30,6 +30,7 @@ def preprocesar_categoricas(df, columna_target):
     categ = df.select_dtypes(include='object').dropna(subset=[columna_target])  # Selecciona columnas categóricas y elimina filas con valores nulos en la columna objetivo
     print(f"[preprocesar_categoricas] Columnas categóricas: {list(categ.columns)}. Filas tras dropna: {len(categ)}.")  # Muestra las columnas categóricas y el número de filas restantes
     return categ  # Devuelve el DataFrame procesado
+#################################################### EJERCICIO 1 PUNTO 1  ####################################################################
 
 def dividir_entrenamiento_prueba(df, prueba_size=0.2, random_state=None):
     """
@@ -42,6 +43,7 @@ def dividir_entrenamiento_prueba(df, prueba_size=0.2, random_state=None):
     print(f"[dividir_entrenamiento_prueba] Entrenamiento:{len(entrenamiento)} filas, Prueba:{len(prueba)} filas.")  # Muestra el tamaño de los conjuntos
     return entrenamiento, prueba  # Devuelve los conjuntos de entrenamiento y prueba
 
+#################################################### EJERCICIO 1 PUNTO 2  ####################################################################
 # --- Implementación ID3 ---
 def entropia(serie):
     """
@@ -69,13 +71,13 @@ def construir_id3(df, target, caracteristicas):
     Construye recursivamente un árbol de decisión usando ID3.
     """
     # Caso base: si todas las etiquetas iguales
-    if len(df[target].unique()) == 1:
+    if len(df[target].unique()) == 1:    # unique unifica para eliminar duplicados y si hay un solo elemento es una hoja o nodo puro
         clase = df[target].iloc[0]
         print(f"[construir_id3] Nodo hoja con clase {clase}.")
         return clase
     # Sin atributos remanentes
-    if not caracteristicas:
-        moda = df[target].mode()[0]
+    if not caracteristicas:           # no tiene valor el atributo en esa fila
+        moda = df[target].mode()[0]   # lo etiqueta con el más frecuente
         print(f"[construir_id3] Sin caracteristicas, retorna moda {moda}.")
         return moda
 
@@ -182,21 +184,24 @@ if __name__ == '__main__':
     df = cargar_datos(URL, COLS)
     df = filtrar_edad(df, 'Edad', 40, 45)
     df = preprocesar_categoricas(df, TARGET)
-    train, test = dividir_entrenamiento_prueba(df)
+    entrenamiento, prueba = dividir_entrenamiento_prueba(df)
 
     # ID3
-    caracteristicas = [c for c in train.columns if c != TARGET]
-    por_defecto = train[TARGET].mode()[0]
-    arbol_id3 = construir_id3(train, TARGET, caracteristicas)
-    y_pred_id3 = [predecir_id3(arbol_id3, fila, por_defecto) for _, fila in test.iterrows()]
-    resultados_id3 = evaluar(test[TARGET].tolist(), y_pred_id3)
+    caracteristicas = [c for c in entrenamiento.columns if c != TARGET]
+    por_defecto = entrenamiento[TARGET].mode()[0]
+    arbol_id3 = construir_id3(entrenamiento, TARGET, caracteristicas)
+    y_pred_id3 = [predecir_id3(arbol_id3, fila, por_defecto) for _, fila in prueba.iterrows()]
+    resultados_id3 = evaluar(prueba[TARGET].tolist(), y_pred_id3)
     visualizar_arbol(arbol_id3)
 
     # Random Forest
     print(f"\n--- Predicción Random Forest ---")
-    X_tr = pd.get_dummies(train.drop(columns=[TARGET]))
-    X_te = pd.get_dummies(test.drop(columns=[TARGET]))
+    X_tr = pd.get_dummies(entrenamiento.drop(columns=[TARGET]))
+    X_te = pd.get_dummies(prueba.drop(columns=[TARGET]))
     X_train, X_test = X_tr.align(X_te, join='left', axis=1, fill_value=0)
-    y_pred_rf = ejecutar_bosque_random(X_train, train[TARGET], X_test)
-    resultados_rf = evaluar(test[TARGET].tolist(), y_pred_rf)
-    graficar_curva_precision(X_train, train[TARGET], X_test, test[TARGET])
+    y_pred_rf = ejecutar_bosque_random(X_train, entrenamiento[TARGET], X_test)
+    resultados_rf = evaluar(prueba[TARGET].tolist(), y_pred_rf)
+    graficar_curva_precision(X_train, entrenamiento[TARGET], X_test, prueba[TARGET])
+
+
+
