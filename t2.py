@@ -45,7 +45,7 @@ def preprocesar_categoricas(df, columna_target):
     return categ
 
 
-def dividir_train_test(df, columna_target, test_size=0.2, random_state=42):
+def dividir_train_test(df, test_size=0.2, random_state=42):
     """
     Mezcla aleatoriamente el DataFrame y lo divide en train y test según test_size.
 
@@ -243,7 +243,7 @@ if __name__ == '__main__':
     df = cargar_datos(URL, COLS)
     df = filtrar_edad(df, 'Edad', 40, 45)
     df = preprocesar_categoricas(df, TARGET)
-    train, test = dividir_train_test(df, TARGET)
+    train, test = dividir_train_test(df)
 
     # ID3
     caracteristicas = [c for c in train.columns if c != TARGET]
