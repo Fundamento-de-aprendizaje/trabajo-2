@@ -45,20 +45,20 @@ def preprocesar_categoricas(df, columna_target):
     return categ
 
 
-def dividir_train_test(df, test_size=0.2, random_state=42):
+def dividir_entrenamiento_prueba(df, prueba_size=0.2, random_state=None):
     """
-    Mezcla aleatoriamente el DataFrame y lo divide en train y test según test_size.
+    Mezcla aleatoriamente el DataFrame y lo divide en entrenamiento y prueba según prueba_size.
 
     Teoría:
       - Validación: split 80/20 para evaluar generalización del modelo.
       - Reproducibilidad: seed fija en sample.
     """
     df_shuffled = df.sample(frac=1, random_state=random_state).reset_index(drop=True)
-    idx = int(len(df_shuffled)*(1-test_size))
-    train = df_shuffled.iloc[:idx]
-    test  = df_shuffled.iloc[idx:]
-    print(f"[dividir_train_test] Train:{len(train)} filas, Test:{len(test)} filas.")
-    return train, test
+    idx = int(len(df_shuffled)*(1-prueba_size))
+    entrenamiento = df_shuffled.iloc[:idx]
+    prueba  = df_shuffled.iloc[idx:]
+    print(f"[dividir_entrenamiento_prueba] Entrenamiento:{len(entrenamiento)} filas, Prueba:{len(prueba)} filas.")
+    return entrenamiento, prueba
 
 # --- Implementación ID3 ---
 
@@ -243,7 +243,7 @@ if __name__ == '__main__':
     df = cargar_datos(URL, COLS)
     df = filtrar_edad(df, 'Edad', 40, 45)
     df = preprocesar_categoricas(df, TARGET)
-    train, test = dividir_train_test(df)
+    train, test = dividir_entrenamiento_prueba(df)
 
     # ID3
     caracteristicas = [c for c in train.columns if c != TARGET]
