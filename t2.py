@@ -101,20 +101,21 @@ def construir_id3(df, target, atributos):  # caracteristicas son los atributos
         )
     return arbol
 
-def predecir_id3(arbol, fila, por_defecto):
+def predecir_id3(arbol, fila, primer_valor_de_moda):
     """
     Predice la clase de una instancia usando el árbol ID3.
     """
     if not isinstance(arbol, dict):
-        return arbol or por_defecto
+        return arbol or primer_valor_de_moda
     caracteristica = next(iter(arbol))
     valor = fila.get(caracteristica)
     rama = arbol[caracteristica].get(valor)
-    return predecir_id3(rama, fila, por_defecto)
+    return predecir_id3(rama, fila, primer_valor_de_moda)
 
 
-##################################### EJERCICIO 1 PUNTO 3 y 4 ############################################################
+###### Matriz de Confusión Acurracy F1-score ### EJERCICIO 1 PUNTOS  3 y 4 - EJERCICIO 2 PUNTOS 2 Y 3###############
 # --- Evaluación de Modelos ---
+
 def evaluar(y_true, y_pred):
     """
     Calcula matriz de confusión y métricas (accuracy, precision, recall, F1).
@@ -129,9 +130,9 @@ def evaluar(y_true, y_pred):
     return {'cm': cm, 'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1}
 
 
-################################ EJERCICIO 2 PUNTO 1 #################################################
+#########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
 # --- Random Forest ---
-def ejecutar_bosque_random(X_train, y_train, X_test, n_estimators=10, random_state=42):
+def ejecutar_bosque_random(X_train, y_train, X_test, n_estimators=10, random_state=None):
     """
     Entrena y predice con RandomForestClassifier.
     """
@@ -141,6 +142,9 @@ def ejecutar_bosque_random(X_train, y_train, X_test, n_estimators=10, random_sta
     print(f"[ejecutar_bosque_random] Predicciones generadas para {len(preds)} instancias.")
     return preds
 
+
+
+#####curva_precision#################### EJERCICIO 2 PUNTO 4 ############################################################# 
 def graficar_curva_precision(X_train, y_train, X_test, y_test, max_arboles=10):
     """
     Grafica precisión vs número de árboles para train y test.
@@ -193,20 +197,29 @@ df = cargar_datos(URL, COLS)
 df = filtrar_edad(df, 'Edad', 40, 45)
 df = preprocesar_categoricas(df, TARGET)
 entrenamiento, prueba = dividir_entrenamiento_prueba(df)
-# ID3
-caracteristicas = [c for c in entrenamiento.columns if c != TARGET]
-por_defecto = entrenamiento[TARGET].mode()[0]
-arbol_id3 = construir_id3(entrenamiento, TARGET, caracteristicas)
-y_pred_id3 = [predecir_id3(arbol_id3, fila, por_defecto) for _, fila in prueba.iterrows()]
+######## ID3 #############################EJERCICIO 1 PUNTO 2 ##########################################################
+
+atributos = [atributo for atributo in entrenamiento.columns if atributo != TARGET]
+primer_valor_de_moda = entrenamiento[TARGET].mode()[0]
+arbol_id3 = construir_id3(entrenamiento, TARGET, atributos)
+y_pred_id3 = [predecir_id3(arbol_id3, fila, primer_valor_de_moda) for _, fila in prueba.iterrows()]
+
+###### Matriz de Confusión Acurracy F1-score ### EJERCICIO 1 PUNTO 3 y 4 #############################################
 resultados_id3 = evaluar(prueba[TARGET].tolist(), y_pred_id3)
+
+
+#########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
 visualizar_arbol(arbol_id3)
-# Random Forest
 print(f"\n--- Predicción Random Forest ---")
 X_tr = pd.get_dummies(entrenamiento.drop(columns=[TARGET]))
 X_te = pd.get_dummies(prueba.drop(columns=[TARGET]))
 X_train, X_test = X_tr.align(X_te, join='left', axis=1, fill_value=0)
 y_pred_rf = ejecutar_bosque_random(X_train, entrenamiento[TARGET], X_test)
+
+###### Matriz de Confusión Acurracy F1-score ##### EJERCICIO 2 PUNTO 2 y 3 #############################################
 resultados_rf = evaluar(prueba[TARGET].tolist(), y_pred_rf)
+
+######curva_precision############## EJERCICIO 2 PUNTO 4 ############################################################# 
 graficar_curva_precision(X_train, entrenamiento[TARGET], X_test, prueba[TARGET])
 
 
