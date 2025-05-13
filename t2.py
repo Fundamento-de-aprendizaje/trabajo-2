@@ -6,6 +6,8 @@ from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, r
 import matplotlib.pyplot as plt  # Librería para visualización de datos
 from graphviz import Digraph  # Herramienta para crear gráficos de árboles
 
+# pip install pandas numpy scikit-learn matplotlib graphviz
+
 # --- Carga y Preprocesamiento de Datos ---
 def cargar_datos(url, columnas, codificacion='latin1'):
     """
@@ -116,18 +118,63 @@ def predecir_id3(arbol, fila, primer_valor_de_moda):
 ###### Matriz de Confusión Acurracy F1-score ### EJERCICIO 1 PUNTOS  3 y 4 - EJERCICIO 2 PUNTOS 2 Y 3###############
 # --- Evaluación de Modelos ---
 
+# def evaluar(y_true, y_pred):
+#     """
+#     Calcula matriz de confusión y métricas (accuracy, precision, recall, F1).
+#     """
+#     etiquetas = sorted(set(y_true))
+#     cm = confusion_matrix(y_true, y_pred, labels=etiquetas)
+#     acc = accuracy_score(y_true, y_pred)
+#     prec = precision_score(y_true, y_pred, pos_label=etiquetas[0])
+#     rec = recall_score(y_true, y_pred, pos_label=etiquetas[0])
+#     f1 = f1_score(y_true, y_pred, pos_label=etiquetas[0])
+#     print(f"[evaluar] CM:\n _Matriz de Confusión {cm}\nAccuracy: {acc:.4f}, Precision: {prec:.4f}, Recall: {rec:.4f}, F1: {f1:.4f}")
+#     return {'cm': cm, 'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1}
+
+
 def evaluar(y_true, y_pred):
     """
-    Calcula matriz de confusión y métricas (accuracy, precision, recall, F1).
+    Calcula manualmente la matriz de confusión y métricas de evaluación.
     """
-    etiquetas = sorted(set(y_true))
-    cm = confusion_matrix(y_true, y_pred, labels=etiquetas)
-    acc = accuracy_score(y_true, y_pred)
-    prec = precision_score(y_true, y_pred, pos_label=etiquetas[0])
-    rec = recall_score(y_true, y_pred, pos_label=etiquetas[0])
-    f1 = f1_score(y_true, y_pred, pos_label=etiquetas[0])
-    print(f"[evaluar] CM:\n{cm}\nAccuracy: {acc:.4f}, Precision: {prec:.4f}, Recall: {rec:.4f}, F1: {f1:.4f}")
-    return {'cm': cm, 'accuracy': acc, 'precision': prec, 'recall': rec, 'f1': f1}
+    # Asumimos dos clases distintas
+    clases = sorted(set(y_true))
+    if len(clases) != 2:
+        raise ValueError("Esta función solo soporta clasificación binaria.")
+    
+    pos_label = clases[0]
+    neg_label = clases[1]
+    
+    TP = sum((yt == pos_label and yp == pos_label) for yt, yp in zip(y_true, y_pred))
+    TN = sum((yt == neg_label and yp == neg_label) for yt, yp in zip(y_true, y_pred))
+    FP = sum((yt == neg_label and yp == pos_label) for yt, yp in zip(y_true, y_pred))
+    FN = sum((yt == pos_label and yp == neg_label) for yt, yp in zip(y_true, y_pred))
+
+    total = TP + TN + FP + FN
+
+    accuracy = (TP + TN) / total if total else 0
+    precision = TP / (TP + FP) if (TP + FP) else 0
+    recall = TP / (TP + FN) if (TP + FN) else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+
+    # Mostrar matriz de confusión de forma tabular
+    print(f"[evaluar] Matriz de Confusión:")
+    print(f"              Predicho")
+    print(f"              {pos_label}    {neg_label}")
+    print(f"Real {pos_label}    {TP}        {FN}")
+    print(f"Real {neg_label}    {FP}        {TN}")
+    
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    
+    return {
+        'cm': [[TP, FN], [FP, TN]],
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'f1': f1
+    }
 
 
 #########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
@@ -153,12 +200,12 @@ def graficar_curva_precision(X_train, y_train, X_test, y_test, max_arboles=10):
     p_train, p_test = [], []
     etiqueta = y_train.mode()[0]
     for n in arboles:
-        rf = RandomForestClassifier(n_estimators=n, random_state=42)
+        rf = RandomForestClassifier(n_estimators=n, random_state=None)
         rf.fit(X_train, y_train)
         p_train.append(precision_score(y_train, rf.predict(X_train), pos_label=etiqueta))
         p_test.append(precision_score(y_test, rf.predict(X_test), pos_label=etiqueta))
-    plt.plot(arboles, p_train, marker='o', label='Train')
-    plt.plot(arboles, p_test, marker='o', label='Test')
+    plt.plot(arboles, p_train, marker='o', label='Entrenamiento')
+    plt.plot(arboles, p_test, marker='o', label='Prueba')
     plt.xlabel('Número de árboles')
     plt.ylabel('Precisión')
     plt.title('Precisión vs tamaño del bosque')
@@ -209,7 +256,7 @@ resultados_id3 = evaluar(prueba[TARGET].tolist(), y_pred_id3)
 
 
 #########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
-visualizar_arbol(arbol_id3)
+# visualizar_arbol(arbol_id3)
 print(f"\n--- Predicción Random Forest ---")
 X_tr = pd.get_dummies(entrenamiento.drop(columns=[TARGET]))
 X_te = pd.get_dummies(prueba.drop(columns=[TARGET]))
@@ -221,6 +268,3 @@ resultados_rf = evaluar(prueba[TARGET].tolist(), y_pred_rf)
 
 ######curva_precision############## EJERCICIO 2 PUNTO 4 ############################################################# 
 graficar_curva_precision(X_train, entrenamiento[TARGET], X_test, prueba[TARGET])
-
-
-
