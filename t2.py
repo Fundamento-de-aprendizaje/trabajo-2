@@ -1,157 +1,277 @@
-import pandas as pd  # Importa la biblioteca pandas para manipulación de datos
-from collections import Counter  # Importa Counter para contar elementos en una colección
-import numpy as np  # Importa numpy para operaciones matemáticas avanzadas
+import pandas as pd  # Librería para manipulación y análisis de datos
+import numpy as np  # Librería para operaciones numéricas
+from collections import Counter  # Herramienta para contar elementos en colecciones
+from sklearn.ensemble import RandomForestClassifier  # Modelo de clasificación Random Forest
+from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score  # Métricas de evaluación
+import matplotlib.pyplot as plt  # Librería para visualización de datos
+from graphviz import Digraph  # Herramienta para crear gráficos de árboles
 
-print("PUNTO 1")  # Imprime un encabezado para identificar la sección del código
+# pip install pandas numpy scikit-learn matplotlib graphviz
 
-# Cargar datos desde el archivo CSV
-url = 'https://drive.google.com/uc?export=download&id=1BQEFonHa5aYO4MTg1EWxGIuRSgCw6ZXb'  # URL del archivo CSV
-datos = pd.read_csv(url, usecols=[0, 1, 2, 5, 12, 13], encoding='latin1')  # Carga las columnas seleccionadas del archivo CSV
+# --- Carga y Preprocesamiento de Datos ---
+def cargar_datos(url, columnas, codificacion='latin1'):
+    """
+    Carga un CSV desde una URL y devuelve un DataFrame con las columnas especificadas.
+    """  # Carga el archivo CSV con las columnas y codificación especificadas
+    df = pd.read_csv(url, usecols=columnas, encoding=codificacion) 
+         # Muestra información sobre los datos cargados
+    print(f"[cargar_datos] Datos cargados con {len(df)} filas y {len(df.columns)} columnas.")  
+    return df  # Devuelve el DataFrame cargado
 
-# Filtrar por edad entre 40 y 45
-datos_filtrados = datos[(datos['Edad'] >= 40) & (datos['Edad'] <= 45)].copy()  # Filtra filas donde la edad está entre 40 y 45
+def filtrar_edad(df, columna_edad, edad_min, edad_max):
+    """
+    Filtra el DataFrame para incluir solo filas cuya edad esté entre edad_min y edad_max.
+    """             # Filtra las filas según el rango de edad
+    filtrado = df[(df[columna_edad] >= edad_min) & (df[columna_edad] <= edad_max)].copy() 
+                    # Muestra el número de filas filtradas
+    print(f"[filtrar_edad] Filtrado: {len(filtrado)} filas entre {edad_min} y {edad_max} años.")  
+    return filtrado  # Devuelve el DataFrame filtrado
 
-# Usar solo columnas categóricas
-datos_filtrados = datos_filtrados.select_dtypes(include='object')  # Selecciona solo columnas categóricas
-#print("Cantidad de datos sin eliminar:",len(datos_filtrados))
-datos_filtrados = datos_filtrados.dropna()  # Elimina filas con valores faltantes
-# print("Cantidad de datos con eliminados:",len(datos_filtrados))
-# Mezclar datos aleatoriamente y dividir en entrenamiento y prueba (80/20)
-datos_filtrados = datos_filtrados.sample(frac=1, random_state=42).reset_index(drop=True)  # Mezcla los datos aleatoriamente
-split_index = int(0.8 * len(datos_filtrados))  # Calcula el índice para dividir los datos en 80/20
-train_data = datos_filtrados.iloc[:split_index]  # Datos de entrenamiento (80%)
-test_data = datos_filtrados.iloc[split_index:]  # Datos de prueba (20%)
-#print("Cantidad de datos entrenamiento:",len(train_data))
-#print("Cantidad de datos prueba:",len(test_data))
-# Entropía de Shannon
-def entropy(columna):
-    print("columna \n",columna)
-    conteos = Counter(columna)  # Cuenta la frecuencia de cada valor en la columna
-    print("conteos",conteos)
-    total = len(columna)  # Calcula el total de elementos en la columna
-    return -sum((c / total) * np.log2(c / total) for c in conteos.values())  # Calcula la entropía de Shannon
+def preprocesar_categoricas(df, columna_target):
+    """
+    Selecciona solo columnas categóricas y elimina filas sin valor en la variable target.
+    """
+    # Selecciona columnas categóricas y elimina filas con valores nulos en la columna objetivo
+    categ = df.select_dtypes(include='object').dropna(subset=[columna_target]) 
+    # Muestra las columnas categóricas y el número de filas restantes 
+    print(f"[preprocesar_categoricas] Columnas categóricas: {list(categ.columns)}. Filas tras dropna: {len(categ)}.")  
+    # Devuelve el DataFrame procesado
+    return categ  
+#################################################### EJERCICIO 1 PUNTO 1  ####################################################################
 
-# Ganancia de información
-def info_gain(data, atributo, clase):
-    total_ent = entropy(data[clase])  # Calcula la entropía total de la clase
-    print("total_entropia   ",total_ent)
-    valores = data[atributo].unique()  # Obtiene los valores únicos del atributo
-    print("valores atributo sin unique    \n",data[atributo])
-    print("valores con unique    ",valores)
-    entropia_ponderada = 0  # Inicializa la entropía ponderada
-    for val in valores:  # Itera sobre cada valor único del atributo
-        subconjunto = data[data[atributo] == val]  # Filtra el subconjunto de datos con el valor actual
-        peso = len(subconjunto) / len(data)  # Calcula el peso del subconjunto
-        entropia_ponderada += peso * entropy(subconjunto[clase])  # Suma la entropía ponderada del subconjunto
-    print("ganancia",f"{(total_ent - entropia_ponderada):.10f}" )    
-    return total_ent - entropia_ponderada  # Retorna la ganancia de información
+def dividir_entrenamiento_prueba(df, prueba_size=0.2, random_state=None):
+    """
+    Mezcla aleatoriamente el DataFrame y lo divide en entrenamiento y prueba según prueba_size.
+    """
+    # Mezcla aleatoriamente las filas del DataFrame
+    df_shuffled = df.sample(frac=1, random_state=random_state).reset_index(drop=True)  
+    # Calcula el índice para dividir el DataFrame
+    idx = int(len(df_shuffled)*(1-prueba_size))  
+    # Selecciona las filas para el conjunto de entrenamiento
+    entrenamiento = df_shuffled.iloc[:idx]  
+    # Selecciona las filas para el conjunto de prueba
+    prueba  = df_shuffled.iloc[idx:]  
+    # Muestra el tamaño de los conjuntos
+    print(f"Entrenamiento:{len(entrenamiento)} filas, Prueba:{len(prueba)} filas.") 
+    # Devuelve los conjuntos de entrenamiento y prueba
+    return entrenamiento, prueba  
 
-# Algoritmo ID3 recursivo
-def id3(data, clase, atributos):
-    if len(data[clase].unique()) == 1:  # Si todas las filas tienen la misma clase
-        return data[clase].iloc[0]  # Retorna esa clase
+#################################################### EJERCICIO 1 PUNTO 2  ####################################################################
+# --- Implementación ID3 ---
+def entropia(serie):
+    """
+    Calcula la entropía de Shannon de una serie de etiquetas.
+    medida cuantitativa de la cantidad de informaci´on que contiene una variable
+    """
+    # Cuenta la frecuencia de cada valor en la serie (columna de estado, ACEPTADO o RECHAZADO)
+    conteos = Counter(serie)  
+    total = len(serie)  # Calcula el número total de elementos
+    # Calcula la entropía usando la fórmula de Shannon, la cantidad de veces que tenemos por cada estado
+    resEntropia = -sum((cantEstado/total)*np.log2(cantEstado/total) for cantEstado in conteos.values())  
+    # Muestra los valores y la entropía calculada
+    print(f"[entropia] Valores: {dict(conteos)}, Entropía: {resEntropia:.4f}") 
+    return resEntropia  # Devuelve la entropía calculada
 
-    if not atributos:  # Si no quedan atributos para dividir
-        return data[clase].mode()[0]  # Retorna la clase más frecuente
+def ganancia_informacion(df, atributo, target):
+    """
+    Calcula la ganancia de información de particionar df por caracteristica.
+    """
+     # Calcula la entropía total del conjunto de datos
+    ent_total = entropia(df[target]) 
+    # Calcula la entropía ponderada por partición
+    ent_ponderada = sum((len(sub)/len(df))*entropia(sub[target]) for _, sub in df.groupby(atributo))  
+    # Calcula la ganancia de información
+    ganancia = ent_total - ent_ponderada  
+    # Muestra la característica y su ganancia de información
+    print(f"[ganancia_informacion] Feature: {atributo}, Ganancia: {ganancia:.4f}")  
+    return ganancia  # Devuelve la ganancia de información
 
-    ganancias = [info_gain(data, att, clase) for att in atributos]  # Calcula la ganancia de información para cada atributo
-    mejor_atributo = atributos[np.argmax(ganancias)]  # Selecciona el atributo con mayor ganancia
-    arbol = {mejor_atributo: {}}  # Crea un nodo del árbol con el mejor atributo
+def construir_id3(df, target, atributos):  # caracteristicas son los atributos 
+    """
+    Construye recursivamente un árbol de decisión usando ID3.
+    """
+    # Caso base: si todas las etiquetas iguales
+    # unique unifica para eliminar duplicados y si hay un solo elemento es una hoja o nodo puro
+    if len(df[target].unique()) == 1:    
+        clase = df[target].iloc[0]
+        print(f"[construir_id3] Nodo hoja con clase {clase}.")
+        return clase
+    # Sin atributos remanentes
+    # no tiene valor el atributo en esa fila
+    if not atributos:      
+        # lo etiqueta con el más frecuente     
+        moda = df[target].mode()[0]   
+        print(f"[construir_id3] Sin atributos, retorna moda {moda}.")
+        return moda
 
-    for valor in data[mejor_atributo].unique():  # Itera sobre los valores únicos del mejor atributo
-        subconjunto = data[data[mejor_atributo] == valor]  # Filtra el subconjunto de datos con el valor actual
-        nuevos_atributos = [att for att in atributos if att != mejor_atributo]  # Excluye el mejor atributo de la lista
-        arbol[mejor_atributo][valor] = id3(subconjunto, clase, nuevos_atributos)  # Llama recursivamente a ID3
+    # Elegir mejor atributo de acuerdo a la ganancia de información de cada uno
+    #Se elige el atributo con mayor valor para la ganancia de informaci´on.
+    ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos}
+    atributo_mejor_ganancia = max(ganancias, key=ganancias.get)
+    print(f"[construir_id3] Mejor atributos: {atributo_mejor_ganancia}.")
+    arbol = {atributo_mejor_ganancia: {}} 
 
-    return arbol  # Retorna el árbol generado
+    # Particionar 
+    #Se calcula la entrop´ıa y ganancia de los  nodos hijos 
 
-# Función de predicción
-def predict(arbol, fila):
-    if not isinstance(arbol, dict):  # Si el árbol es una hoja
-        return arbol  # Retorna el valor de la hoja
-    atributo = next(iter(arbol))  # Obtiene el atributo del nodo actual
-    valor = fila.get(atributo)  # Obtiene el valor del atributo en la fila
-    if valor in arbol[atributo]:  # Si el valor está en el árbol
-        return predict(arbol[atributo][valor], fila)  # Llama recursivamente a predict
-    else:
-        return None  # Retorna None si el valor no está en el árbol
+    for valor, sub in df.groupby(atributo_mejor_ganancia):
+        # se utiliza la recursividad para armar el árbol
+                                               # construir_id3 (df, target, atributos)  
+        arbol[atributo_mejor_ganancia][valor] = construir_id3(  
+            sub,
+            target,
+            [f for f in atributos if f != atributo_mejor_ganancia]
+        )
+    return arbol
 
-# Entrenamiento
-columna_clase = 'Estado'  # Define la columna de la clase objetivo
-atributos = [col for col in train_data.columns if col != columna_clase]  # Lista de atributos excluyendo la clase
-arbol = id3(train_data, columna_clase, atributos)  # Genera el árbol de decisión usando ID3
-
-# Predicción sobre test_data
-y_true = test_data[columna_clase].tolist()  # Lista de valores reales de la clase en los datos de prueba
-y_pred = [predict(arbol, fila) for _, fila in test_data.iterrows()]  # Lista de predicciones para cada fila en los datos de prueba
-
-# Prints de depuración
-print("Distribución real en test_data (Estado):")  # Imprime la distribución de la clase en los datos de prueba
-print(test_data['Estado'].value_counts())  # Cuenta los valores únicos de la clase en los datos de prueba
-
-print("\nValores únicos predichos por el árbol:")  # Imprime los valores únicos predichos por el árbol
-print(set(y_pred))  # Convierte las predicciones a un conjunto para obtener valores únicos
-
-print("\nComparación real vs predicción (primeros 10 casos):")  # Imprime las primeras 10 comparaciones entre valores reales y predichos
-for real, pred in list(zip(y_true, y_pred))[:10]:  # Itera sobre las primeras 10 predicciones
-    print(f"Real: {real}  ->  Predicho: {pred}")  # Imprime el valor real y el predicho
-
-# Métricas de evaluación
-def confusion_metrics(y_true, y_pred, positivo='OTORGADO'):
-    TP = sum(yt == yp == positivo for yt, yp in zip(y_true, y_pred))  # Verdaderos positivos
-    TN = sum(yt == yp and yt != positivo for yt, yp in zip(y_true, y_pred))  # Verdaderos negativos
-    FP = sum(yt != positivo and yp == positivo for yt, yp in zip(y_true, y_pred))  # Falsos positivos
-    FN = sum(yt == positivo and yp != positivo for yt, yp in zip(y_true, y_pred))  # Falsos negativos
-
-    accuracy = (TP + TN) / len(y_true)  # Precisión
-    precision = TP / (TP + FP) if (TP + FP) else 0  # Precisión
-    recall = TP / (TP + FN) if (TP + FN) else 0  # Sensibilidad
-    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0  # Puntaje F1
-
-    return {'TP': TP, 'TN': TN, 'FP': FP, 'FN': FN,  # Retorna las métricas calculadas
-            'accuracy': accuracy, 'f1_score': f1}
-
-# Mostrar resultados
-resultados = confusion_metrics(y_true, y_pred, positivo='OTORGADO')  # Calcula las métricas de evaluación
-print("\nÁrbol generado:\n", arbol)  # Imprime el árbol generado
-print("\nMatriz de Confusión y Métricas:")  # Imprime las métricas de evaluación
-for clave, valor in resultados.items():  # Itera sobre las métricas
-    print(f"{clave}: {valor:.4f}" if isinstance(valor, float) else f"{clave}: {valor}")  # Imprime cada métrica
-
-
-
+def predecir_id3(arbol, fila, primer_valor_de_moda):
+    """
+    Predice la clase de una instancia usando el árbol ID3.
+    """
+    if not isinstance(arbol, dict):
+        return arbol or primer_valor_de_moda
+    caracteristica = next(iter(arbol))
+    valor = fila.get(caracteristica)
+    rama = arbol[caracteristica].get(valor)
+    return predecir_id3(rama, fila, primer_valor_de_moda)
 
 
+###### Matriz de Confusión Acurracy F1-score ### EJERCICIO 1 PUNTOS  3 y 4 - EJERCICIO 2 PUNTOS 2 Y 3###############
+# --- Evaluación de Modelos ---
+
+def evaluar(y_true, y_pred):
+    """
+    Calcula manualmente la matriz de confusión y métricas de evaluación.
+    """
+    # Asumimos dos clases distintas
+    clases = sorted(set(y_true))
+    if len(clases) != 2:
+        raise ValueError("Esta función solo soporta clasificación binaria.")
+    
+    pos_label = clases[0]
+    neg_label = clases[1]
+    
+    TP = sum((yt == pos_label and yp == pos_label) for yt, yp in zip(y_true, y_pred))
+    TN = sum((yt == neg_label and yp == neg_label) for yt, yp in zip(y_true, y_pred))
+    FP = sum((yt == neg_label and yp == pos_label) for yt, yp in zip(y_true, y_pred))
+    FN = sum((yt == pos_label and yp == neg_label) for yt, yp in zip(y_true, y_pred))
+
+    total = TP + TN + FP + FN
+
+    accuracy = (TP + TN) / total if total else 0
+    precision = TP / (TP + FP) if (TP + FP) else 0
+    recall = TP / (TP + FN) if (TP + FN) else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
+
+    # Mostrar matriz de confusión de forma tabular
+    print(f"[evaluar] Matriz de Confusión:")
+    print(f"              Predicho")
+    print(f"              {pos_label}    {neg_label}")
+    print(f"Real {pos_label}    {TP}        {FN}")
+    print(f"Real {neg_label}    {FP}        {TN}")
+    
+    print(f"Accuracy: {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall: {recall:.4f}")
+    print(f"F1 Score: {f1:.4f}")
+    
+    return {
+        'cm': [[TP, FN], [FP, TN]],
+        'accuracy': accuracy,
+        'precision': precision,
+        'recall': recall,
+        'f1': f1
+    }
+
+
+#########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
+# --- Random Forest ---
+def ejecutar_bosque_random(X_train, y_train, X_test, n_estimators=10, random_state=None):
+    """
+    Entrena y predice con RandomForestClassifier.
+    """
+    modelo = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
+    modelo.fit(X_train, y_train)
+    preds = modelo.predict(X_test)
+    print(f"[ejecutar_bosque_random] Predicciones generadas para {len(preds)} instancias.")
+    return preds
 
 
 
+#####curva_precision#################### EJERCICIO 2 PUNTO 4 ############################################################# 
+def graficar_curva_precision(X_train, y_train, X_test, y_test, max_arboles=10):
+    """
+    Grafica precisión vs número de árboles para train y test.
+    """
+    arboles = list(range(1, max_arboles+1))
+    p_train, p_test = [], []
+    etiqueta = y_train.mode()[0] 
+    for n in arboles:
+        rf = RandomForestClassifier(n_estimators=n, random_state=None)
+        rf.fit(X_train, y_train)
+        p_train.append(precision_score(y_train, rf.predict(X_train), pos_label=etiqueta))
+        p_test.append(precision_score(y_test, rf.predict(X_test), pos_label=etiqueta))
+    plt.plot(arboles, p_train, marker='o', label='Entrenamiento')
+    plt.plot(arboles, p_test, marker='o', label='Prueba')
+    plt.xlabel('Número de árboles')
+    plt.ylabel('Precisión')
+    plt.title('Precisión vs tamaño del bosque')
+    plt.legend()
+    plt.show()
 
-    # Función para imprimir el árbol de forma jerárquica
-from graphviz import Digraph
-
-def visualizar_arbol(arbol, nombre_archivo="arbol"):
+# --- Visualización de Árbol ID3 ---
+def visualizar_arbol(arbol, nombre_archivo='arbol'):
+    """
+    Guarda una representación gráfica del árbol ID3 usando graphviz.
+    """
     dot = Digraph()
-    contador = [0]  # Contador de nodos únicos
-
-    def agregar_nodo(subarbol, padre=None, valor_padre=None):
-        nodo_id = str(contador[0])
-        contador[0] += 1
-
-        if isinstance(subarbol, dict):
-            atributo = next(iter(subarbol))
-            dot.node(nodo_id, atributo)  # Nodo del atributo
-            if padre is not None:
-                dot.edge(padre, nodo_id, label=str(valor_padre))
-            for valor, rama in subarbol[atributo].items():
-                agregar_nodo(rama, nodo_id, valor)
+    idx = {'i': 0}
+    def agregar_nodos(sub, padre=None, etiqueta=None):
+        nodo = str(idx['i']); idx['i'] += 1
+        if isinstance(sub, dict):
+            feat = next(iter(sub))
+            dot.node(nodo, feat)
+            if padre: dot.edge(padre, nodo, label=str(etiqueta))
+            for val, ch in sub[feat].items():
+                agregar_nodos(ch, nodo, val)
         else:
-            dot.node(nodo_id, str(subarbol), shape='box')  # Nodo hoja
-            if padre is not None:
-                dot.edge(padre, nodo_id, label=str(valor_padre))
-
-    agregar_nodo(arbol)
+            dot.node(nodo, str(sub), shape='box')
+            if padre: dot.edge(padre, nodo, label=str(etiqueta))
+    agregar_nodos(arbol)
     dot.render(filename=nombre_archivo, format='png', cleanup=True)
-    print(f"Árbol guardado como {nombre_archivo}.png")
+    print(f"[visualizar_arbol] Árbol guardado en {nombre_archivo}.png")
 
-# Llamar a la función
-visualizar_arbol(arbol)
+# --- Ejecución Principal ---
+
+URL = 'https://drive.google.com/uc?export=download&id=1BQEFonHa5aYO4MTg1EWxGIuRSgCw6ZXb'
+COLS = [0,1,2,5,12,13]
+TARGET = 'Estado'
+# --- Pipeline completo ---
+df = cargar_datos(URL, COLS)
+df = filtrar_edad(df, 'Edad', 40, 45)
+df = preprocesar_categoricas(df, TARGET)
+entrenamiento, prueba = dividir_entrenamiento_prueba(df)
+######## ID3 #############################EJERCICIO 1 PUNTO 2 ##########################################################
+
+atributos = [atributo for atributo in entrenamiento.columns if atributo != TARGET]
+primer_valor_de_moda = entrenamiento[TARGET].mode()[0]
+arbol_id3 = construir_id3(entrenamiento, TARGET, atributos)
+y_pred_id3 = [predecir_id3(arbol_id3, fila, primer_valor_de_moda) for _, fila in prueba.iterrows()]
+
+###### Matriz de Confusión Acurracy F1-score ### EJERCICIO 1 PUNTO 3 y 4 #############################################
+resultados_id3 = evaluar(prueba[TARGET].tolist(), y_pred_id3)
+
+
+#########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
+# visualizar_arbol(arbol_id3)
+print(f"\n--- Predicción Random Forest ---")
+X_tr = pd.get_dummies(entrenamiento.drop(columns=[TARGET]))
+X_te = pd.get_dummies(prueba.drop(columns=[TARGET]))
+X_train, X_test = X_tr.align(X_te, join='left', axis=1, fill_value=0)
+y_pred_rf = ejecutar_bosque_random(X_train, entrenamiento[TARGET], X_test)
+
+###### Matriz de Confusión Acurracy F1-score ##### EJERCICIO 2 PUNTO 2 y 3 #############################################
+resultados_rf = evaluar(prueba[TARGET].tolist(), y_pred_rf)
+
+######curva_precision############## EJERCICIO 2 PUNTO 4 ############################################################# 
+graficar_curva_precision(X_train, entrenamiento[TARGET], X_test, prueba[TARGET])
