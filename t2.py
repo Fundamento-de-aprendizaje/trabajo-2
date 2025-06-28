@@ -66,7 +66,7 @@ def entropia(serie):
     # Calcula la entropía usando la fórmula de Shannon, la cantidad de veces que tenemos por cada estado
     resEntropia = -sum((cantEstado/total)*np.log2(cantEstado/total) for cantEstado in conteos.values())  
     # Muestra los valores y la entropía calculada
-    print(f"[entropia] Valores: {dict(conteos)}, Entropía: {resEntropia:.4f}") 
+    #print(f"[entropia] Valores: {dict(conteos)}, Entropía: {resEntropia:.4f}") 
     return resEntropia  # Devuelve la entropía calculada
 
 def ganancia_informacion(df, atributo, target):
@@ -80,38 +80,11 @@ def ganancia_informacion(df, atributo, target):
     # Calcula la ganancia de información
     ganancia = ent_total - ent_ponderada  
     # Muestra la característica y su ganancia de información
-    print(f"[ganancia_informacion] Feature: {atributo}, Ganancia: {ganancia:.4f}")  
+   # print(f"[ganancia_informacion] Feature: {atributo}, Ganancia: {ganancia:.4f}")  
     return ganancia  # Devuelve la ganancia de información
 
-# def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0):
-#     """
-#     Construye recursivamente un árbol de decisión usando ID3 con límite de profundidad.
-#     """
-#     # Caso base: nodo puro
-#     if len(df[target].unique()) == 1:
-#         clase = df[target].iloc[0]
-#         return clase
 
-#     # Caso base: sin atributos o se alcanzó la profundidad máxima
-#     if not atributos or (profundidad_max is not None and profundidad_actual >= profundidad_max):
-#         moda = df[target].mode()[0]
-#         return moda
-
-#     # Elegir mejor atributo según ganancia de información
-#     ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos}
-#     atributo_mejor_ganancia = max(ganancias, key=ganancias.get)
-#     arbol = {atributo_mejor_ganancia: {}}
-
-#     for valor, sub in df.groupby(atributo_mejor_ganancia):
-#         arbol[atributo_mejor_ganancia][valor] = construir_id3(
-#             sub,
-#             target,
-#             [a for a in atributos if a != atributo_mejor_ganancia],
-#             profundidad_max,
-#             profundidad_actual + 1
-#         )
-#     return arbol
-def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0, atributos_por_nodo=4):
+def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0, atributos_por_nodo=4,bosque=False):
     # Caso base
     if len(df[target].unique()) == 1:
         return df[target].iloc[0]
@@ -127,6 +100,14 @@ def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actua
     # Elegir mejor atributo
     ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos_a_evaluar}
     atributo_mejor = max(ganancias, key=ganancias.get)
+    #print("atributo con bsoque",atributo_mejor)
+
+    if(not bosque):
+        atributo_mejor = max(ganancias, key=ganancias.get)
+       # print("atributo sin bsoque",atributo_mejor)
+    else:
+        atributo_mejor = list(ganancias.keys())[0]  
+       #print("atributo con bsoque",atributo_mejor)
     arbol = {atributo_mejor: {}}
 
     for valor, sub in df.groupby(atributo_mejor):
@@ -205,12 +186,12 @@ def evaluar(y_true, y_pred):
 # --- Random Forest ---
 # Random Forest manual
 def construir_bosque(df, target, atributos, n_arboles=10, profundidad_max=None):
-    bosque = []
+    el_bosque = []
     for _ in range(n_arboles):
         muestra = df.sample(frac=1, replace=True)
-        arbol = construir_id3(muestra, target, atributos, profundidad_max)
-        bosque.append(arbol)
-    return bosque
+        arbol = construir_id3(muestra, target, atributos, profundidad_max,bosque=True)
+        el_bosque.append(arbol)
+    return el_bosque
 
 def predecir_bosque(bosque, df_test, clase_defecto):
     predicciones = []
@@ -230,9 +211,9 @@ def contar_nodos(arbol):
     return nodos + 1  # sumar el nodo raíz
 
 
-# Gráfico precisión vs profundidad
+# Gráfico precisión vs tamaño de árbol
 def graficar_precision_vs_tamano_arbol(df_train, df_test, target):
-    atributos = [c for c in df_train.columns if c != target]
+    atributos = [columna for columna in df_train.columns if columna != target]
     clase_defecto = df_train[target].mode()[0]
     tamanos = []
     precisiones_train = []
@@ -240,7 +221,7 @@ def graficar_precision_vs_tamano_arbol(df_train, df_test, target):
 
     for _ in range(10):  # repetir para distintos árboles individuales
         muestra = df_train.sample(frac=1, replace=True)
-        arbol = construir_id3(muestra, target, atributos)
+        arbol = construir_id3(muestra, target, atributos,bosque=True)
         tamano = contar_nodos(arbol)
         pred_train = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_train.iterrows()]
         pred_test = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_test.iterrows()]
