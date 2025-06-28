@@ -2,7 +2,7 @@ import pandas as pd  # Librería para manipulación y análisis de datos
 import numpy as np  # Librería para operaciones numéricas
 from collections import Counter  # Herramienta para contar elementos en colecciones
 import matplotlib.pyplot as plt  # Librería para visualización de datos
-
+import random
 # pip install pandas numpy scikit-learn matplotlib graphviz
 
 # --- Carga y Preprocesamiento de Datos ---
@@ -83,34 +83,63 @@ def ganancia_informacion(df, atributo, target):
     print(f"[ganancia_informacion] Feature: {atributo}, Ganancia: {ganancia:.4f}")  
     return ganancia  # Devuelve la ganancia de información
 
-def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0):
-    """
-    Construye recursivamente un árbol de decisión usando ID3 con límite de profundidad.
-    """
-    # Caso base: nodo puro
+# def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0):
+#     """
+#     Construye recursivamente un árbol de decisión usando ID3 con límite de profundidad.
+#     """
+#     # Caso base: nodo puro
+#     if len(df[target].unique()) == 1:
+#         clase = df[target].iloc[0]
+#         return clase
+
+#     # Caso base: sin atributos o se alcanzó la profundidad máxima
+#     if not atributos or (profundidad_max is not None and profundidad_actual >= profundidad_max):
+#         moda = df[target].mode()[0]
+#         return moda
+
+#     # Elegir mejor atributo según ganancia de información
+#     ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos}
+#     atributo_mejor_ganancia = max(ganancias, key=ganancias.get)
+#     arbol = {atributo_mejor_ganancia: {}}
+
+#     for valor, sub in df.groupby(atributo_mejor_ganancia):
+#         arbol[atributo_mejor_ganancia][valor] = construir_id3(
+#             sub,
+#             target,
+#             [a for a in atributos if a != atributo_mejor_ganancia],
+#             profundidad_max,
+#             profundidad_actual + 1
+#         )
+#     return arbol
+def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0, atributos_por_nodo=4):
+    # Caso base
     if len(df[target].unique()) == 1:
-        clase = df[target].iloc[0]
-        return clase
+        return df[target].iloc[0]
 
-    # Caso base: sin atributos o se alcanzó la profundidad máxima
     if not atributos or (profundidad_max is not None and profundidad_actual >= profundidad_max):
-        moda = df[target].mode()[0]
-        return moda
+        return df[target].mode()[0]
 
-    # Elegir mejor atributo según ganancia de información
-    ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos}
-    atributo_mejor_ganancia = max(ganancias, key=ganancias.get)
-    arbol = {atributo_mejor_ganancia: {}}
+    # Selección aleatoria de atributos (si se especifica)
+    atributos_a_evaluar = atributos
+    if atributos_por_nodo is not None:
+        atributos_a_evaluar = random.sample(atributos, min(atributos_por_nodo, len(atributos)))
 
-    for valor, sub in df.groupby(atributo_mejor_ganancia):
-        arbol[atributo_mejor_ganancia][valor] = construir_id3(
+    # Elegir mejor atributo
+    ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos_a_evaluar}
+    atributo_mejor = max(ganancias, key=ganancias.get)
+    arbol = {atributo_mejor: {}}
+
+    for valor, sub in df.groupby(atributo_mejor):
+        arbol[atributo_mejor][valor] = construir_id3(
             sub,
             target,
-            [a for a in atributos if a != atributo_mejor_ganancia],
+            [a for a in atributos if a != atributo_mejor],
             profundidad_max,
-            profundidad_actual + 1
+            profundidad_actual + 1,
+            atributos_por_nodo  # pasarlo en cada llamada recursiva
         )
     return arbol
+
 
 def predecir_id3(arbol, fila, primer_valor_de_moda):
     """
@@ -264,3 +293,48 @@ evaluar(prueba[TARGET].tolist(), y_pred)
 print("\n--- Gráfico de Precisión vs Profundidad ---")
 graficar_precision_vs_tamano_arbol(entrenamiento, prueba, TARGET)
 
+
+
+from graphviz import Digraph
+
+def dibujar_arbol_id3(arbol, nombre_archivo='arbol_id3'):
+    """
+    Genera un archivo PNG visualizando el árbol ID3 representado como diccionario.
+    """
+    dot = Digraph(comment='Árbol ID3')
+    contador_nodo = [0]  # Lista mutable para contar nodos únicos
+
+    def agregar_nodo(subarbol, padre=None, etiqueta_padre=None):
+        nodo_id = f'n{contador_nodo[0]}'
+        contador_nodo[0] += 1
+
+        if isinstance(subarbol, dict):
+            atributo = next(iter(subarbol))
+            dot.node(nodo_id, atributo)
+            if padre is not None:
+                dot.edge(padre, nodo_id, label=str(etiqueta_padre))
+            for valor, rama in subarbol[atributo].items():
+                agregar_nodo(rama, nodo_id, valor)
+        else:
+            # Es una hoja con la clase final
+            dot.node(nodo_id, str(subarbol), shape='box', style='filled', color='lightblue')
+            if padre is not None:
+                dot.edge(padre, nodo_id, label=str(etiqueta_padre))
+
+    agregar_nodo(arbol)
+    dot.render(filename=nombre_archivo, format='png', cleanup=True)
+    print(f"[dibujar_arbol_id3] Árbol guardado como '{nombre_archivo}.png'")
+
+
+dibujar_arbol_id3(arbol_id3, 'mi_arbol_id3')
+
+def dibujar_bosque(bosque):
+    """
+    Dibuja cada árbol del bosque y lo guarda como archivo PNG.
+    """
+    for i, arbol in enumerate(bosque):
+        nombre_archivo = f'bosque_arbol_{i+1}'
+        dibujar_arbol_id3(arbol, nombre_archivo)
+
+
+dibujar_bosque(bosque)
