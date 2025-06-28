@@ -1,10 +1,7 @@
 import pandas as pd  # Librería para manipulación y análisis de datos
 import numpy as np  # Librería para operaciones numéricas
 from collections import Counter  # Herramienta para contar elementos en colecciones
-from sklearn.ensemble import RandomForestClassifier  # Modelo de clasificación Random Forest
-from sklearn.metrics import confusion_matrix, accuracy_score, precision_score, recall_score, f1_score  # Métricas de evaluación
 import matplotlib.pyplot as plt  # Librería para visualización de datos
-from graphviz import Digraph  # Herramienta para crear gráficos de árboles
 
 # pip install pandas numpy scikit-learn matplotlib graphviz
 
@@ -86,41 +83,32 @@ def ganancia_informacion(df, atributo, target):
     print(f"[ganancia_informacion] Feature: {atributo}, Ganancia: {ganancia:.4f}")  
     return ganancia  # Devuelve la ganancia de información
 
-def construir_id3(df, target, atributos):  # caracteristicas son los atributos 
+def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0):
     """
-    Construye recursivamente un árbol de decisión usando ID3.
+    Construye recursivamente un árbol de decisión usando ID3 con límite de profundidad.
     """
-    # Caso base: si todas las etiquetas iguales
-    # unique unifica para eliminar duplicados y si hay un solo elemento es una hoja o nodo puro
-    if len(df[target].unique()) == 1:    
+    # Caso base: nodo puro
+    if len(df[target].unique()) == 1:
         clase = df[target].iloc[0]
-        print(f"[construir_id3] Nodo hoja con clase {clase}.")
         return clase
-    # Sin atributos remanentes
-    # no tiene valor el atributo en esa fila
-    if not atributos:      
-        # lo etiqueta con el más frecuente     
-        moda = df[target].mode()[0]   
-        print(f"[construir_id3] Sin atributos, retorna moda {moda}.")
+
+    # Caso base: sin atributos o se alcanzó la profundidad máxima
+    if not atributos or (profundidad_max is not None and profundidad_actual >= profundidad_max):
+        moda = df[target].mode()[0]
         return moda
 
-    # Elegir mejor atributo de acuerdo a la ganancia de información de cada uno
-    #Se elige el atributo con mayor valor para la ganancia de informaci´on.
+    # Elegir mejor atributo según ganancia de información
     ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos}
     atributo_mejor_ganancia = max(ganancias, key=ganancias.get)
-    print(f"[construir_id3] Mejor atributos: {atributo_mejor_ganancia}.")
-    arbol = {atributo_mejor_ganancia: {}} 
-
-    # Particionar 
-    #Se calcula la entrop´ıa y ganancia de los  nodos hijos 
+    arbol = {atributo_mejor_ganancia: {}}
 
     for valor, sub in df.groupby(atributo_mejor_ganancia):
-        # se utiliza la recursividad para armar el árbol
-                                               # construir_id3 (df, target, atributos)  
-        arbol[atributo_mejor_ganancia][valor] = construir_id3(  
+        arbol[atributo_mejor_ganancia][valor] = construir_id3(
             sub,
             target,
-            [f for f in atributos if f != atributo_mejor_ganancia]
+            [a for a in atributos if a != atributo_mejor_ganancia],
+            profundidad_max,
+            profundidad_actual + 1
         )
     return arbol
 
@@ -186,60 +174,64 @@ def evaluar(y_true, y_pred):
 
 #########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
 # --- Random Forest ---
-def ejecutar_bosque_random(X_train, y_train, X_test, n_estimators=10, random_state=None):
-    """
-    Entrena y predice con RandomForestClassifier.
-    """
-    modelo = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
-    modelo.fit(X_train, y_train)
-    preds = modelo.predict(X_test)
-    print(f"[ejecutar_bosque_random] Predicciones generadas para {len(preds)} instancias.")
-    return preds
+# Random Forest manual
+def construir_bosque(df, target, atributos, n_arboles=10, profundidad_max=None):
+    bosque = []
+    for _ in range(n_arboles):
+        muestra = df.sample(frac=1, replace=True)
+        arbol = construir_id3(muestra, target, atributos, profundidad_max)
+        bosque.append(arbol)
+    return bosque
+
+def predecir_bosque(bosque, df_test, clase_defecto):
+    predicciones = []
+    for _, fila in df_test.iterrows():
+        votos = [predecir_id3(arbol, fila, clase_defecto) for arbol in bosque]
+        predicciones.append(Counter(votos).most_common(1)[0][0])
+    return predicciones
 
 
+def contar_nodos(arbol):
+    if not isinstance(arbol, dict):
+        return 1
+    nodos = 0
+    for rama in arbol.values():
+        for subarbol in rama.values():
+            nodos += contar_nodos(subarbol)
+    return nodos + 1  # sumar el nodo raíz
 
-#####curva_precision#################### EJERCICIO 2 PUNTO 4 ############################################################# 
-def graficar_curva_precision(X_train, y_train, X_test, y_test, max_arboles=10):
-    """
-    Grafica precisión vs número de árboles para train y test.
-    """
-    arboles = list(range(1, max_arboles+1))
-    p_train, p_test = [], []
-    etiqueta = y_train.mode()[0] 
-    for n in arboles:
-        rf = RandomForestClassifier(n_estimators=n, random_state=None)
-        rf.fit(X_train, y_train)
-        p_train.append(precision_score(y_train, rf.predict(X_train), pos_label=etiqueta))
-        p_test.append(precision_score(y_test, rf.predict(X_test), pos_label=etiqueta))
-    plt.plot(arboles, p_train, marker='o', label='Entrenamiento')
-    plt.plot(arboles, p_test, marker='o', label='Prueba')
-    plt.xlabel('Número de árboles')
+
+# Gráfico precisión vs profundidad
+def graficar_precision_vs_tamano_arbol(df_train, df_test, target):
+    atributos = [c for c in df_train.columns if c != target]
+    clase_defecto = df_train[target].mode()[0]
+    tamanos = []
+    precisiones_train = []
+    precisiones_test = []
+
+    for _ in range(10):  # repetir para distintos árboles individuales
+        muestra = df_train.sample(frac=1, replace=True)
+        arbol = construir_id3(muestra, target, atributos)
+        tamano = contar_nodos(arbol)
+        pred_train = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_train.iterrows()]
+        pred_test = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_test.iterrows()]
+        prec_train = sum(yt == yp for yt, yp in zip(df_train[target], pred_train)) / len(df_train)
+        prec_test = sum(yt == yp for yt, yp in zip(df_test[target], pred_test)) / len(df_test)
+
+        tamanos.append(tamano)
+        precisiones_train.append(prec_train)
+        precisiones_test.append(prec_test)
+
+    plt.plot(tamanos, precisiones_train, 'o-', label='Train')
+    plt.plot(tamanos, precisiones_test, 'o-', label='Test')
+    plt.title('Precisión vs Tamaño del Árbol')
+    plt.xlabel('Tamaño del Árbol (número de nodos)')
     plt.ylabel('Precisión')
-    plt.title('Precisión vs tamaño del bosque')
+    plt.grid(True)
     plt.legend()
+    plt.tight_layout()
     plt.show()
 
-# --- Visualización de Árbol ID3 ---
-def visualizar_arbol(arbol, nombre_archivo='arbol'):
-    """
-    Guarda una representación gráfica del árbol ID3 usando graphviz.
-    """
-    dot = Digraph()
-    idx = {'i': 0}
-    def agregar_nodos(sub, padre=None, etiqueta=None):
-        nodo = str(idx['i']); idx['i'] += 1
-        if isinstance(sub, dict):
-            feat = next(iter(sub))
-            dot.node(nodo, feat)
-            if padre: dot.edge(padre, nodo, label=str(etiqueta))
-            for val, ch in sub[feat].items():
-                agregar_nodos(ch, nodo, val)
-        else:
-            dot.node(nodo, str(sub), shape='box')
-            if padre: dot.edge(padre, nodo, label=str(etiqueta))
-    agregar_nodos(arbol)
-    dot.render(filename=nombre_archivo, format='png', cleanup=True)
-    print(f"[visualizar_arbol] Árbol guardado en {nombre_archivo}.png")
 
 # --- Ejecución Principal ---
 
@@ -263,15 +255,12 @@ resultados_id3 = evaluar(prueba[TARGET].tolist(), y_pred_id3)
 
 
 #########Random Forest ####################### EJERCICIO 2 PUNTO 1 #################################################
-# visualizar_arbol(arbol_id3)
-print(f"\n--- Predicción Random Forest ---")
-X_tr = pd.get_dummies(entrenamiento.drop(columns=[TARGET]))
-X_te = pd.get_dummies(prueba.drop(columns=[TARGET]))
-X_train, X_test = X_tr.align(X_te, join='left', axis=1, fill_value=0)
-y_pred_rf = ejecutar_bosque_random(X_train, entrenamiento[TARGET], X_test)
 
-###### Matriz de Confusión Acurracy F1-score ##### EJERCICIO 2 PUNTO 2 y 3 #############################################
-resultados_rf = evaluar(prueba[TARGET].tolist(), y_pred_rf)
+print("\n--- Random Forest Manual ---")
+bosque = construir_bosque(entrenamiento, TARGET, atributos, n_arboles=10)
+y_pred = predecir_bosque(bosque, prueba, primer_valor_de_moda)
+evaluar(prueba[TARGET].tolist(), y_pred)
 
-######curva_precision############## EJERCICIO 2 PUNTO 4 ############################################################# 
-graficar_curva_precision(X_train, entrenamiento[TARGET], X_test, prueba[TARGET])
+print("\n--- Gráfico de Precisión vs Profundidad ---")
+graficar_precision_vs_tamano_arbol(entrenamiento, prueba, TARGET)
+
