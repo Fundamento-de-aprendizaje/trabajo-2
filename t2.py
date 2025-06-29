@@ -84,7 +84,7 @@ def ganancia_informacion(df, atributo, target):
     return ganancia  # Devuelve la ganancia de información
 
 
-def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0, atributos_por_nodo=4,bosque=False):
+def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actual=0, atributos_por_nodo=2):
     # Caso base
     if len(df[target].unique()) == 1:
         return df[target].iloc[0]
@@ -100,14 +100,7 @@ def construir_id3(df, target, atributos, profundidad_max=None, profundidad_actua
     # Elegir mejor atributo
     ganancias = {atributo: ganancia_informacion(df, atributo, target) for atributo in atributos_a_evaluar}
     atributo_mejor = max(ganancias, key=ganancias.get)
-    #print("atributo con bsoque",atributo_mejor)
-
-    if(not bosque):
-        atributo_mejor = max(ganancias, key=ganancias.get)
-       # print("atributo sin bsoque",atributo_mejor)
-    else:
-        atributo_mejor = list(ganancias.keys())[0]  
-       #print("atributo con bsoque",atributo_mejor)
+    
     arbol = {atributo_mejor: {}}
 
     for valor, sub in df.groupby(atributo_mejor):
@@ -157,7 +150,7 @@ def evaluar(y_true, y_pred):
     total = TP + TN + FP + FN
 
     accuracy = (TP + TN) / total if total else 0
-    precision = TP / (TP + FP) if (TP + FP) else 0
+    precision = TP / (TP + FP) if (TP + FP) else 0  
     recall = TP / (TP + FN) if (TP + FN) else 0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
 
@@ -189,7 +182,7 @@ def construir_bosque(df, target, atributos, n_arboles=10, profundidad_max=None):
     el_bosque = []
     for _ in range(n_arboles):
         muestra = df.sample(frac=1, replace=True)
-        arbol = construir_id3(muestra, target, atributos, profundidad_max,bosque=True)
+        arbol = construir_id3(muestra, target, atributos, profundidad_max, atributos_por_nodo=2)
         el_bosque.append(arbol)
     return el_bosque
 
@@ -212,29 +205,105 @@ def contar_nodos(arbol):
 
 
 # Gráfico precisión vs tamaño de árbol
-def graficar_precision_vs_tamano_arbol(df_train, df_test, target):
-    atributos = [columna for columna in df_train.columns if columna != target]
-    clase_defecto = df_train[target].mode()[0]
-    tamanos = []
-    precisiones_train = []
-    precisiones_test = []
+# def graficar_precision_vs_tamano_arbol(df_train, df_test, target):
+#     atributos = [columna for columna in df_train.columns if columna != target]
+#     clase_defecto = df_train[target].mode()[0]
+#     tamanos = []
+#     precisiones_train = []
+#     precisiones_test = []
 
-    for _ in range(10):  # repetir para distintos árboles individuales
-        muestra = df_train.sample(frac=1, replace=True)
-        arbol = construir_id3(muestra, target, atributos,bosque=True)
+#     for _ in range(10):  # repetir para distintos árboles individuales
+#         muestra = df_train.sample(frac=1, replace=True)
+#         arbol = construir_id3(muestra, target, atributos)
+#         tamano = contar_nodos(arbol)
+#         pred_train = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_train.iterrows()]
+#         pred_test = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_test.iterrows()]
+#         prec_train = sum(yt == yp for yt, yp in zip(df_train[target], pred_train)) / len(df_train)
+#         prec_test = sum(yt == yp for yt, yp in zip(df_test[target], pred_test)) / len(df_test)
+
+#         tamanos.append(tamano)
+#         precisiones_train.append(prec_train)
+#         precisiones_test.append(prec_test)
+
+#     plt.plot(tamanos, precisiones_train, 'o-', label='Train')
+#     plt.plot(tamanos, precisiones_test, 'o-', label='Test')
+#     plt.title('Precisión vs Tamaño del Árbol')
+#     plt.xlabel('Tamaño del Árbol (número de nodos)')
+#     plt.ylabel('Precisión')
+#     plt.grid(True)
+#     plt.legend()
+#     plt.tight_layout()
+#     plt.show()
+
+# def graficar_precision_vs_tamano_arbol(df_train, df_test, target):
+#     atributos = [columna for columna in df_train.columns if columna != target]
+#     clase_defecto = df_train[target].mode()[0]
+#     tamanos = []
+#     precisiones_train = []
+#     precisiones_test = []
+
+#     for i in range(10):  # repetir para distintos árboles individuales
+#         muestra = df_train.sample(frac=1, replace=True, random_state=i)
+#         arbol = construir_id3(muestra, target, atributos, atributos_por_nodo=5)
+#         tamano = contar_nodos(arbol)
+#         pred_train = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_train.iterrows()]
+#         pred_test = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_test.iterrows()]
+#         prec_train = sum(yt == yp for yt, yp in zip(df_train[target], pred_train)) / len(df_train)
+#         prec_test = sum(yt == yp for yt, yp in zip(df_test[target], pred_test)) / len(df_test)
+
+#         tamanos.append(tamano)
+#         precisiones_train.append(prec_train)
+#         precisiones_test.append(prec_test)
+
+#     plt.plot(tamanos, precisiones_train, 'o-', label='Train')
+#     plt.plot(tamanos, precisiones_test, 'o-', label='Test')
+#     plt.title('Precisión vs Tamaño del Árbol')
+#     plt.xlabel('Tamaño del Árbol (número de nodos)')
+#     plt.ylabel('Precisión')
+#     plt.grid(True)
+#     plt.legend()
+#     plt.tight_layout()
+#     plt.show()
+
+def graficar_precision_bosque_existente(bosque, df_train, df_test, target):
+    # Calcula la clase más común del conjunto de entrenamiento (valor por defecto si falta una predicción)
+    clase_defecto = df_train[target].mode()[0]
+
+    # Listas para guardar resultados
+    tamanos = []              # número de nodos de cada árbol
+    precisiones_train = []   # precisión del árbol sobre el conjunto de entrenamiento
+    precisiones_test = []    # precisión del árbol sobre el conjunto de prueba
+
+    # Recorre cada árbol del bosque
+    for arbol in bosque:
+        # Cuenta la cantidad de nodos del árbol (para eje X del gráfico)
         tamano = contar_nodos(arbol)
+
+        # Predice sobre los datos de entrenamiento usando el árbol actual
         pred_train = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_train.iterrows()]
+
+        # Predice sobre los datos de prueba usando el mismo árbol
         pred_test = [predecir_id3(arbol, fila, clase_defecto) for _, fila in df_test.iterrows()]
+
+        # Calcula precisión en entrenamiento: proporción de aciertos
         prec_train = sum(yt == yp for yt, yp in zip(df_train[target], pred_train)) / len(df_train)
+
+        # Calcula precisión en prueba: proporción de aciertos
         prec_test = sum(yt == yp for yt, yp in zip(df_test[target], pred_test)) / len(df_test)
 
+        # Guarda los resultados para graficar
         tamanos.append(tamano)
         precisiones_train.append(prec_train)
         precisiones_test.append(prec_test)
 
-    plt.plot(tamanos, precisiones_train, 'o-', label='Train')
-    plt.plot(tamanos, precisiones_test, 'o-', label='Test')
-    plt.title('Precisión vs Tamaño del Árbol')
+    # Dibuja gráfico: tamaño del árbol vs precisión en entrenamiento
+    plt.plot(tamanos, precisiones_train, 'o-', label='Train (bosque existente)')
+
+    # Dibuja gráfico: tamaño del árbol vs precisión en prueba
+    plt.plot(tamanos, precisiones_test, 'o-', label='Test (bosque existente)')
+
+    # Título y etiquetas
+    plt.title('Precisión vs Tamaño del Árbol (bosque existente)')
     plt.xlabel('Tamaño del Árbol (número de nodos)')
     plt.ylabel('Precisión')
     plt.grid(True)
@@ -272,8 +341,9 @@ y_pred = predecir_bosque(bosque, prueba, primer_valor_de_moda)
 evaluar(prueba[TARGET].tolist(), y_pred)
 
 print("\n--- Gráfico de Precisión vs Profundidad ---")
-graficar_precision_vs_tamano_arbol(entrenamiento, prueba, TARGET)
+# graficar_precision_vs_tamano_arbol(entrenamiento, prueba, TARGET)
 
+graficar_precision_bosque_existente(bosque, entrenamiento, prueba, TARGET)
 
 
 from graphviz import Digraph
@@ -314,7 +384,7 @@ def dibujar_bosque(bosque):
     Dibuja cada árbol del bosque y lo guarda como archivo PNG.
     """
     for i, arbol in enumerate(bosque):
-        nombre_archivo = f'bosque_arbol_{i+1}'
+        nombre_archivo = f'bosque_arbol-{i+1}'
         dibujar_arbol_id3(arbol, nombre_archivo)
 
 
