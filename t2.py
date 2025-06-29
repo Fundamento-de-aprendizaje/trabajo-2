@@ -298,9 +298,14 @@ def graficar_precision_bosque_existente(bosque, df_train, df_test, target):
 
     # Dibuja gráfico: tamaño del árbol vs precisión en entrenamiento
     plt.plot(tamanos, precisiones_train, 'o-', label='Train (bosque existente)')
+    for i, (x, y) in enumerate(zip(tamanos, precisiones_train)):
+        plt.text(x, y, str(i+1), fontsize=12, ha='right', va='bottom', color='black')
 
     # Dibuja gráfico: tamaño del árbol vs precisión en prueba
     plt.plot(tamanos, precisiones_test, 'o-', label='Test (bosque existente)')
+     # Etiquetar cada punto con el número de árbol (índice)
+    for i, (x, y) in enumerate(zip(tamanos, precisiones_test)):
+        plt.text(x, y, str(i+1), fontsize=12, ha='right', va='bottom', color='black')
 
     # Título y etiquetas
     plt.title('Precisión vs Tamaño del Árbol (bosque existente)')
